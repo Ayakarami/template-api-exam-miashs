@@ -1,14 +1,72 @@
 import Fastify from 'fastify';
 import 'dotenv/config';
-import fetch from 'node-fetch'; // indispensable pour Render si tu n'es pas en Node 18+
+import fetch from 'node-fetch';
 import { submitForReview } from './submission.js';
+import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
 
 const fastify = Fastify({ logger: true });
 const API_KEY = process.env.API_KEY;
-let recipesDB = []; // stockage temporaire en mémoire
+let recipesDB = [];
+
+/* ----------------------------- Swagger ----------------------------- */
+await fastify.register(swagger, {
+  openapi: {
+    info: {
+      title: 'API Examen MIASHS 2025',
+      description: 'Documentation de l’API pour l\'évaluation',
+      version: '1.0.0',
+    },
+  },
+});
+
+await fastify.register(swaggerUI, {
+  routePrefix: '/docs',
+  uiConfig: {
+    docExpansion: 'full',
+  },
+});
 
 /* ----------------------------- GET ----------------------------- */
-fastify.get("/cities/:cityId/infos", async (request, reply) => {
+fastify.get("/cities/:cityId/infos", {
+  schema: {
+    description: "Récupère les infos d'une ville + météo + recettes",
+    params: {
+      cityId: { type: 'string', description: "Nom ou ID de la ville" }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          coordinates: { type: 'array', items: { type: 'number' } },
+          population: { type: 'number' },
+          knownFor: { type: 'array', items: { type: 'string' } },
+          weatherPredictions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                when: { type: 'string' },
+                min: { type: 'number' },
+                max: { type: 'number' }
+              }
+            }
+          },
+          recipes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                content: { type: 'string' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}, async (request, reply) => {
   const { cityId } = request.params;
 
   try {
@@ -62,7 +120,26 @@ fastify.get("/cities/:cityId/infos", async (request, reply) => {
 });
 
 /* ----------------------------- POST ----------------------------- */
-fastify.post("/cities/:cityId/recipes", async (request, reply) => {
+fastify.post("/cities/:cityId/recipes", {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['content'],
+      properties: {
+        content: { type: 'string' }
+      }
+    },
+    response: {
+      201: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          content: { type: 'string' }
+        }
+      }
+    }
+  }
+}, async (request, reply) => {
   const { cityId } = request.params;
   const { content } = request.body;
 
@@ -101,7 +178,23 @@ fastify.post("/cities/:cityId/recipes", async (request, reply) => {
 });
 
 /* ----------------------------- DELETE ----------------------------- */
-fastify.delete("/cities/:cityId/recipes/:recipeId", async (request, reply) => {
+fastify.delete("/cities/:cityId/recipes/:recipeId", {
+  schema: {
+    params: {
+      type: 'object',
+      properties: {
+        cityId: { type: 'string' },
+        recipeId: { type: 'integer' }
+      }
+    },
+    response: {
+      204: {
+        description: 'Recette supprimée avec succès',
+        type: 'null'
+      }
+    }
+  }
+}, async (request, reply) => {
   const { cityId, recipeId } = request.params;
   const recipeIdNum = parseInt(recipeId, 10);
 
