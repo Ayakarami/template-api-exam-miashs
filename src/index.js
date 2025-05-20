@@ -4,31 +4,31 @@ import { submitForReview } from './submission.js';
 
 const fastify = Fastify({ logger: true });
 
-const API_KEY = process.env.API_KEY || 'm_ddynptj';
-let recipesDB = []; // Mémoire partagée
+// Base de données en mémoire
+let recipesDB = [];
 
-// 🔹 GET /cities/:cityId/infos
-fastify.get('/cities/:cityId/infos', async (request, reply) => {
+/* ----------------------------- GET ----------------------------- */
+fastify.get("/cities/:cityId/infos", async (request, reply) => {
   const { cityId } = request.params;
+  const API_KEY = process.env.API_KEY;
 
   try {
-    const citySearchRes = await fetch(
+    const searchRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities?search=${cityId}&apiKey=${API_KEY}`,
       { headers: { Accept: 'application/json' } }
     );
+    if (!searchRes.ok) return reply.code(404).send({ error: "City not found" });
 
-    if (!citySearchRes.ok) return reply.status(404).send({ error: 'City not found' });
+    const searchData = await searchRes.json();
+    if (searchData.length === 0) return reply.code(404).send({ error: "City not found" });
 
-    const citySearchData = await citySearchRes.json();
-    if (citySearchData.length === 0) return reply.status(404).send({ error: 'City not found' });
-
-    const city = citySearchData[0];
+    const city = searchData[0];
     const cityUniqueId = city.id;
 
-    const cityDetailsRes = await fetch(
+    const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityUniqueId}/insights?apiKey=${API_KEY}`
     );
-    const cityData = await cityDetailsRes.json();
+    const cityData = await cityRes.json();
 
     const weatherRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/weather-predictions?cityId=${cityUniqueId}&apiKey=${API_KEY}`
@@ -50,34 +50,40 @@ fastify.get('/cities/:cityId/infos', async (request, reply) => {
       population: cityData.population || 0,
       knownFor: cityData.knownFor || [],
       weatherPredictions,
-      recipes: cityRecipes.map(r => ({ id: r.id, content: r.content }))
+      recipes: cityRecipes.map(r => ({
+        id: r.id,
+        content: r.content
+      }))
     });
+
   } catch (error) {
-    console.error('GET Error:', error);
-    return reply.status(500).send({ error: 'Internal Server Error' });
+    console.error("GET error:", error);
+    return reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// 🔹 POST /cities/:cityId/recipes
-fastify.post('/cities/:cityId/recipes', async (request, reply) => {
+/* ----------------------------- POST ----------------------------- */
+fastify.post("/cities/:cityId/recipes", async (request, reply) => {
   const { cityId } = request.params;
   const { content } = request.body;
+  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
+    if (!cityRes.ok) {
+      return reply.status(404).send({ error: "City not found" });
+    }
 
-    if (!cityRes.ok) return reply.status(404).send({ error: 'City not found' });
-
-    if (!content || content.trim() === '') {
-      return reply.status(400).send({ error: 'Content cannot be empty.' });
+    if (!content || content.trim() === "") {
+      return reply.status(400).send({ error: "Content cannot be empty." });
     }
     if (content.length < 10) {
-      return reply.status(400).send({ error: 'Content must be at least 10 characters.' });
+      return reply.status(400).send({ error: "Content must be at least 10 characters." });
     }
     if (content.length > 2000) {
-      return reply.status(400).send({ error: 'Content must be less than 2000 characters.' });
+      return reply.status(400).send({ error: "Content must be less than 2000 characters." });
     }
 
     const newRecipe = {
@@ -87,38 +93,49 @@ fastify.post('/cities/:cityId/recipes', async (request, reply) => {
     };
     recipesDB.push(newRecipe);
 
-    return reply.status(201).send({ id: newRecipe.id, content: newRecipe.content });
+    return reply.status(201).send({
+      id: newRecipe.id,
+      content: newRecipe.content
+    });
+
   } catch (error) {
-    console.error('POST Error:', error);
-    return reply.status(500).send({ error: 'Internal Server Error' });
+    console.error("POST error:", error);
+    return reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// 🔹 DELETE /cities/:cityId/recipes/:recipeId
-fastify.delete('/cities/:cityId/recipes/:recipeId', async (request, reply) => {
+/* ----------------------------- DELETE ----------------------------- */
+fastify.delete("/cities/:cityId/recipes/:recipeId", async (request, reply) => {
   const { cityId, recipeId } = request.params;
   const recipeIdNum = parseInt(recipeId, 10);
+  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
-    if (!cityRes.ok) return reply.status(404).send({ error: 'City not found' });
+    if (!cityRes.ok) {
+      return reply.status(404).send({ error: "City not found" });
+    }
 
-    const index = recipesDB.findIndex(
-      r => r.id === recipeIdNum && r.cityId === cityId
+    const recipeIndex = recipesDB.findIndex(
+      (recipe) => recipe.id === recipeIdNum && recipe.cityId === cityId
     );
-    if (index === -1) return reply.status(404).send({ error: 'Recipe not found' });
 
-    recipesDB.splice(index, 1);
-    return reply.status(204).send();
+    if (recipeIndex === -1) {
+      return reply.status(404).send({ error: "Recipe not found" });
+    }
+
+    recipesDB.splice(recipeIndex, 1);
+    return reply.status(204).send(); // No content
+
   } catch (error) {
-    console.error('DELETE Error:', error);
-    return reply.status(500).send({ error: 'Internal Server Error' });
+    console.error("DELETE error:", error);
+    return reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// 📤 Soumission auto pour correction
+/* ----------------------------- START ----------------------------- */
 fastify.listen(
   {
     port: process.env.PORT || 3000,
@@ -129,6 +146,8 @@ fastify.listen(
       fastify.log.error(err);
       process.exit(1);
     }
+
+    // Ne pas toucher à cette ligne :
     submitForReview(fastify);
   }
 );
