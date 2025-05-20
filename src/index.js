@@ -1,16 +1,15 @@
 import Fastify from 'fastify';
 import 'dotenv/config';
+import fetch from 'node-fetch'; // indispensable pour Render si tu n'es pas en Node 18+
 import { submitForReview } from './submission.js';
 
 const fastify = Fastify({ logger: true });
-
-// Base de données en mémoire
-let recipesDB = [];
+const API_KEY = process.env.API_KEY;
+let recipesDB = []; // stockage temporaire en mémoire
 
 /* ----------------------------- GET ----------------------------- */
 fastify.get("/cities/:cityId/infos", async (request, reply) => {
   const { cityId } = request.params;
-  const API_KEY = process.env.API_KEY;
 
   try {
     const searchRes = await fetch(
@@ -66,15 +65,12 @@ fastify.get("/cities/:cityId/infos", async (request, reply) => {
 fastify.post("/cities/:cityId/recipes", async (request, reply) => {
   const { cityId } = request.params;
   const { content } = request.body;
-  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
-    if (!cityRes.ok) {
-      return reply.status(404).send({ error: "City not found" });
-    }
+    if (!cityRes.ok) return reply.status(404).send({ error: "City not found" });
 
     if (!content || content.trim() === "") {
       return reply.status(400).send({ error: "Content cannot be empty." });
@@ -108,26 +104,22 @@ fastify.post("/cities/:cityId/recipes", async (request, reply) => {
 fastify.delete("/cities/:cityId/recipes/:recipeId", async (request, reply) => {
   const { cityId, recipeId } = request.params;
   const recipeIdNum = parseInt(recipeId, 10);
-  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
-    if (!cityRes.ok) {
-      return reply.status(404).send({ error: "City not found" });
-    }
+    if (!cityRes.ok) return reply.status(404).send({ error: "City not found" });
 
     const recipeIndex = recipesDB.findIndex(
-      (recipe) => recipe.id === recipeIdNum && recipe.cityId === cityId
+      (r) => r.id === recipeIdNum && r.cityId === cityId
     );
-
     if (recipeIndex === -1) {
       return reply.status(404).send({ error: "Recipe not found" });
     }
 
     recipesDB.splice(recipeIndex, 1);
-    return reply.status(204).send(); // No content
+    return reply.status(204).send();
 
   } catch (error) {
     console.error("DELETE error:", error);
@@ -135,7 +127,7 @@ fastify.delete("/cities/:cityId/recipes/:recipeId", async (request, reply) => {
   }
 });
 
-/* ----------------------------- START ----------------------------- */
+/* --------------------------- START SERVER --------------------------- */
 fastify.listen(
   {
     port: process.env.PORT || 3000,
@@ -146,8 +138,6 @@ fastify.listen(
       fastify.log.error(err);
       process.exit(1);
     }
-
-    // Ne pas toucher à cette ligne :
     submitForReview(fastify);
   }
 );
