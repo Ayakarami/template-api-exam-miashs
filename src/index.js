@@ -1,12 +1,12 @@
 import Fastify from 'fastify';
 import 'dotenv/config';
-import fetch from 'node-fetch';
-import { submitForReview } from './submission.js';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
+import { submitForReview } from './submission.js';
 
 const fastify = Fastify({ logger: true });
-const API_KEY = process.env.API_KEY;
+
+// Base de données en mémoire
 let recipesDB = [];
 
 /* ----------------------------- Swagger ----------------------------- */
@@ -14,14 +14,14 @@ await fastify.register(swagger, {
   openapi: {
     info: {
       title: 'API Examen MIASHS 2025',
-      description: 'Documentation de l’API pour l\'évaluation',
       version: '1.0.0',
+      description: 'Documentation de l’API pour l’évaluation',
     },
   },
 });
 
 await fastify.register(swaggerUI, {
-  routePrefix: '/docs',
+  routePrefix: '/',
   uiConfig: {
     docExpansion: 'full',
   },
@@ -30,9 +30,13 @@ await fastify.register(swaggerUI, {
 /* ----------------------------- GET ----------------------------- */
 fastify.get("/cities/:cityId/infos", {
   schema: {
-    description: "Récupère les infos d'une ville + météo + recettes",
+    summary: 'Infos sur une ville',
     params: {
-      cityId: { type: 'string', description: "Nom ou ID de la ville" }
+      type: 'object',
+      properties: {
+        cityId: { type: 'string' },
+      },
+      required: ['cityId'],
     },
     response: {
       200: {
@@ -48,26 +52,27 @@ fastify.get("/cities/:cityId/infos", {
               properties: {
                 when: { type: 'string' },
                 min: { type: 'number' },
-                max: { type: 'number' }
-              }
-            }
+                max: { type: 'number' },
+              },
+            },
           },
           recipes: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
-                id: { type: 'integer' },
-                content: { type: 'string' }
-              }
-            }
-          }
-        }
-      }
-    }
+                id: { type: 'number' },
+                content: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
   }
 }, async (request, reply) => {
   const { cityId } = request.params;
+  const API_KEY = process.env.API_KEY;
 
   try {
     const searchRes = await fetch(
@@ -122,32 +127,36 @@ fastify.get("/cities/:cityId/infos", {
 /* ----------------------------- POST ----------------------------- */
 fastify.post("/cities/:cityId/recipes", {
   schema: {
+    summary: 'Ajouter une recette',
     body: {
       type: 'object',
-      required: ['content'],
       properties: {
-        content: { type: 'string' }
-      }
+        content: { type: 'string' },
+      },
+      required: ['content'],
     },
     response: {
       201: {
         type: 'object',
         properties: {
-          id: { type: 'integer' },
-          content: { type: 'string' }
-        }
-      }
-    }
+          id: { type: 'number' },
+          content: { type: 'string' },
+        },
+      },
+    },
   }
 }, async (request, reply) => {
   const { cityId } = request.params;
   const { content } = request.body;
+  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
-    if (!cityRes.ok) return reply.status(404).send({ error: "City not found" });
+    if (!cityRes.ok) {
+      return reply.status(404).send({ error: "City not found" });
+    }
 
     if (!content || content.trim() === "") {
       return reply.status(400).send({ error: "Content cannot be empty." });
@@ -180,33 +189,33 @@ fastify.post("/cities/:cityId/recipes", {
 /* ----------------------------- DELETE ----------------------------- */
 fastify.delete("/cities/:cityId/recipes/:recipeId", {
   schema: {
+    summary: 'Supprimer une recette',
     params: {
       type: 'object',
       properties: {
         cityId: { type: 'string' },
-        recipeId: { type: 'integer' }
-      }
+        recipeId: { type: 'string' },
+      },
+      required: ['cityId', 'recipeId'],
     },
-    response: {
-      204: {
-        description: 'Recette supprimée avec succès',
-        type: 'null'
-      }
-    }
   }
 }, async (request, reply) => {
   const { cityId, recipeId } = request.params;
   const recipeIdNum = parseInt(recipeId, 10);
+  const API_KEY = process.env.API_KEY;
 
   try {
     const cityRes = await fetch(
       `https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}?apiKey=${API_KEY}`
     );
-    if (!cityRes.ok) return reply.status(404).send({ error: "City not found" });
+    if (!cityRes.ok) {
+      return reply.status(404).send({ error: "City not found" });
+    }
 
     const recipeIndex = recipesDB.findIndex(
-      (r) => r.id === recipeIdNum && r.cityId === cityId
+      (recipe) => recipe.id === recipeIdNum && recipe.cityId === cityId
     );
+
     if (recipeIndex === -1) {
       return reply.status(404).send({ error: "Recipe not found" });
     }
@@ -220,7 +229,7 @@ fastify.delete("/cities/:cityId/recipes/:recipeId", {
   }
 });
 
-/* --------------------------- START SERVER --------------------------- */
+/* ----------------------------- START ----------------------------- */
 fastify.listen(
   {
     port: process.env.PORT || 3000,
@@ -231,6 +240,8 @@ fastify.listen(
       fastify.log.error(err);
       process.exit(1);
     }
+
+    // Ne pas toucher à cette ligne :
     submitForReview(fastify);
   }
 );
