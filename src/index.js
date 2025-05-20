@@ -1,7 +1,5 @@
 import Fastify from 'fastify';
 import 'dotenv/config';
-import swagger from '@fastify/swagger';
-import swaggerUI from '@fastify/swagger-ui';
 import { submitForReview } from './submission.js';
 
 const fastify = Fastify({ logger: true });
@@ -9,68 +7,8 @@ const fastify = Fastify({ logger: true });
 // Base de données en mémoire
 let recipesDB = [];
 
-/* ----------------------------- Swagger ----------------------------- */
-await fastify.register(swagger, {
-  openapi: {
-    info: {
-      title: 'API Examen MIASHS 2025',
-      version: '1.0.0',
-      description: 'Documentation de l’API pour l’évaluation',
-    },
-  },
-});
-
-await fastify.register(swaggerUI, {
-  routePrefix: '/',
-  uiConfig: {
-    docExpansion: 'full',
-  },
-});
-
 /* ----------------------------- GET ----------------------------- */
-fastify.get("/cities/:cityId/infos", {
-  schema: {
-    summary: 'Infos sur une ville',
-    params: {
-      type: 'object',
-      properties: {
-        cityId: { type: 'string' },
-      },
-      required: ['cityId'],
-    },
-    response: {
-      200: {
-        type: 'object',
-        properties: {
-          coordinates: { type: 'array', items: { type: 'number' } },
-          population: { type: 'number' },
-          knownFor: { type: 'array', items: { type: 'string' } },
-          weatherPredictions: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                when: { type: 'string' },
-                min: { type: 'number' },
-                max: { type: 'number' },
-              },
-            },
-          },
-          recipes: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'number' },
-                content: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
-    },
-  }
-}, async (request, reply) => {
+fastify.get("/cities/:cityId/infos", async (request, reply) => {
   const { cityId } = request.params;
   const API_KEY = process.env.API_KEY;
 
@@ -125,27 +63,7 @@ fastify.get("/cities/:cityId/infos", {
 });
 
 /* ----------------------------- POST ----------------------------- */
-fastify.post("/cities/:cityId/recipes", {
-  schema: {
-    summary: 'Ajouter une recette',
-    body: {
-      type: 'object',
-      properties: {
-        content: { type: 'string' },
-      },
-      required: ['content'],
-    },
-    response: {
-      201: {
-        type: 'object',
-        properties: {
-          id: { type: 'number' },
-          content: { type: 'string' },
-        },
-      },
-    },
-  }
-}, async (request, reply) => {
+fastify.post("/cities/:cityId/recipes", async (request, reply) => {
   const { cityId } = request.params;
   const { content } = request.body;
   const API_KEY = process.env.API_KEY;
@@ -187,19 +105,7 @@ fastify.post("/cities/:cityId/recipes", {
 });
 
 /* ----------------------------- DELETE ----------------------------- */
-fastify.delete("/cities/:cityId/recipes/:recipeId", {
-  schema: {
-    summary: 'Supprimer une recette',
-    params: {
-      type: 'object',
-      properties: {
-        cityId: { type: 'string' },
-        recipeId: { type: 'string' },
-      },
-      required: ['cityId', 'recipeId'],
-    },
-  }
-}, async (request, reply) => {
+fastify.delete("/cities/:cityId/recipes/:recipeId", async (request, reply) => {
   const { cityId, recipeId } = request.params;
   const recipeIdNum = parseInt(recipeId, 10);
   const API_KEY = process.env.API_KEY;
@@ -221,7 +127,7 @@ fastify.delete("/cities/:cityId/recipes/:recipeId", {
     }
 
     recipesDB.splice(recipeIndex, 1);
-    return reply.status(204).send();
+    return reply.status(204).send(); // No content
 
   } catch (error) {
     console.error("DELETE error:", error);
