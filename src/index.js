@@ -1,30 +1,23 @@
-import 'dotenv/config'
-import Fastify from 'fastify'
-import { submitForReview } from './submission.js'
+import Fastify from 'fastify';
+import 'dotenv/config';
+import { submitForReview } from './submission.js';
+import route from './route.js';
 
-const fastify = Fastify({
-  logger: true,
-})
+const fastify = Fastify({ logger: true });
+
+fastify.register(route); // <- très important
 
 fastify.listen(
   {
     port: process.env.PORT || 3000,
     host: process.env.RENDER_EXTERNAL_URL ? '0.0.0.0' : process.env.HOST || 'localhost',
   },
-  function (err) {
+  (err) => {
     if (err) {
-      fastify.log.error(err)
-      process.exit(1)
+      fastify.log.error(err);
+      process.exit(1);
     }
 
-    //////////////////////////////////////////////////////////////////////
-    // Don't delete this line, it is used to submit your API for review //
-    // everytime your start your server.                                //
-    //////////////////////////////////////////////////////////////////////
-    submitForReview(fastify)
+    submitForReview(fastify);
   }
-)
-
-// 👇 Ajoute ça après le fastify.listen :
-import registerRoutes from './routes.js'
-registerRoutes(fastify)
+);
